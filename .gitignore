@@ -1,0 +1,22 @@
+# Python
+__pycache__/
+*.py[cod]
+*.egg-info/
+.venv/
+venv/
+
+# 生成的测试对象与大日志（提交包里可以用生成命令代替）
+data/objects/*.txt
+results/logs/*.log
+
+# 注意：results/raw/*.csv 与 results/figures/*.png 是报告证据，要保留并提交
+
+# 编辑器 / 系统
+.vscode/
+.idea/
+.DS_Store
+Thumbs.db
+
+# 打包产物
+submission.zip
+*.zip
