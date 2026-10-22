@@ -77,20 +77,34 @@ def dns_query(name, server, port, timeout=2.0):
 
 # ------------------------------------------------------------------ HTTP 客户端
 def http_get(ip, port, path, timeout=5.0):
-    timings = {}
+    """发一个非持久 GET，返回 (status, headers, body, timings)。
+
+    timings 口径：
+      connect  从开始到 TCP 建连完成
+      ttfb     从写完请求到收到响应第一个字节
+      total    从开始到读完 body
+    """
+    timings = {"connect": 0.0, "ttfb": 0.0, "total": 0.0}
     started = time.perf_counter()
-    with socket.create_connection((ip, port), timeout=timeout) as sock:
+    sock = socket.create_connection((ip, port), timeout=timeout)
+    try:
         sock.settimeout(timeout)
         timings["connect"] = (time.perf_counter() - started) * 1000
         request = ("GET %s HTTP/1.1\r\nHost: %s\r\nConnection: close\r\nAccept: */*\r\n\r\n"
                    % (path, config.ROUTER["domain"]))
         sent = time.perf_counter()
         sock.sendall(request.encode("latin-1"))
-        status, headers, body = read_response(sock)
-        first_byte = sent + 0  # read_response 内部已读完头部，用总时间近似 TTFB
-        timings["ttfb"] = (time.perf_counter() - sent) * 1000
+
+        marks = {}
+
+        def note_first_byte():
+            marks["first"] = time.perf_counter()
+
+        status, headers, body = read_response(sock, on_first_byte=note_first_byte)
+        timings["ttfb"] = (marks.get("first", time.perf_counter()) - sent) * 1000
         timings["total"] = (time.perf_counter() - started) * 1000
-        del first_byte
+    finally:
+        sock.close()
     return status, headers, body, timings
 
 

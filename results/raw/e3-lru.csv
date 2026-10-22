@@ -1,0 +1,9 @@
+request,cache,entries,evictions
+/obj01.txt,MISS,1,0
+/obj02.txt,MISS,2,0
+/obj03.txt,MISS,3,0
+/obj04.txt,MISS,3,1
+/obj05.txt,MISS,3,2
+/obj06.txt,MISS,3,3
+/obj07.txt,MISS,3,4
+/obj08.txt,MISS,3,5

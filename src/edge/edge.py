@@ -192,6 +192,13 @@ class Handler(socketserver.BaseRequestHandler):
             removed = CACHE.clear()
             log("缓存已清空（%d 项）" % removed)
             return 200, {"Content-Type": "text/plain"}, b"cleared %d" % removed
+        if path == "/admin/reset-stats":
+            with LOCK:
+                for key in ("requests", "hits", "misses", "revalidated", "evictions",
+                            "bytes_from_origin", "bytes_to_client", "errors"):
+                    STATS[key] = 0
+            log("统计已清零")
+            return 200, {"Content-Type": "text/plain"}, b"ok"
         if path == "/admin/delay":
             params = dict(p.split("=") for p in query.split("&") if "=" in p)
             DELAY_MS = max(0, int(params.get("ms", "0")))
@@ -234,7 +241,7 @@ class Handler(socketserver.BaseRequestHandler):
                 log("REVALIDATED %s (304, %.1f ms)" % (path, elapsed))
                 return self.serve_cached("REVALIDATED", entry, method)
             if status == 200:
-                self.store(path, headers, body)
+                self.store(path, headers, body, method)
                 with LOCK:
                     STATS["misses"] += 1
                 log("MISS(重取) %s (%d B, %.1f ms)" % (path, len(body), elapsed))
@@ -244,7 +251,7 @@ class Handler(socketserver.BaseRequestHandler):
         # 3) 完全未命中
         status, headers, body, elapsed = fetch_origin(path, method)
         if status == 200:
-            self.store(path, headers, body)
+            self.store(path, headers, body, method)
             with LOCK:
                 STATS["misses"] += 1
             log("MISS %s (%d B, %.1f ms)" % (path, len(body), elapsed))
@@ -268,11 +275,12 @@ class Handler(socketserver.BaseRequestHandler):
         for name in ("Content-Type", "ETag", "Last-Modified", "Cache-Control", "Content-Range", "Accept-Ranges"):
             if name.lower() in origin_headers:
                 headers[name] = origin_headers[name.lower()]
-        with LOCK:
-            STATS["bytes_to_client"] += 0
         return headers
 
-    def store(self, path, origin_headers, body):
+    def store(self, path, origin_headers, body, method="GET"):
+        # HEAD 的响应没有 body，不能入缓存（否则会用空 body 覆盖正常副本）
+        if method != "GET":
+            return
         if not is_cacheable(origin_headers):
             return
         ttl = parse_max_age(origin_headers.get("cache-control"), 0)

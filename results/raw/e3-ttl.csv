@@ -1,0 +1,5 @@
+max_age_s,hits,revalidated,misses,hit_ratio
+1,0,15,5,0.0
+2,0,15,5,0.0
+4,10,5,5,0.5
+8,15,0,5,0.75

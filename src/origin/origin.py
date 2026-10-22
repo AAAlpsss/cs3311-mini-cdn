@@ -20,7 +20,7 @@ ROOT = os.path.dirname(os.path.dirname(os.path.dirname(os.path.abspath(__file__)
 sys.path.insert(0, os.path.join(ROOT, "src"))
 
 from common import config, console  # noqa: E402
-from common.http_util import build_response, read_request  # noqa: E402
+from common.http_util import build_response, parse_range, read_request  # noqa: E402
 
 console.setup()
 
@@ -49,25 +49,6 @@ def etag_for(full_path, stat):
     etag = '"%s"' % digest.hexdigest()[:16]
     _ETAG_CACHE[key] = etag
     return etag
-
-
-def parse_range(header, total):
-    """仅支持单段 bytes=start-end。返回 (start, end) 或 None。"""
-    if not header or not header.startswith("bytes="):
-        return None
-    spec = header[len("bytes="):].split(",")[0].strip()
-    start_text, _, end_text = spec.partition("-")
-    try:
-        if start_text == "":
-            length = int(end_text)
-            return max(0, total - length), total - 1
-        start = int(start_text)
-        end = int(end_text) if end_text else total - 1
-    except ValueError:
-        return None
-    if start >= total:
-        return None
-    return start, min(end, total - 1)
 
 
 class Handler(socketserver.BaseRequestHandler):
@@ -119,6 +100,12 @@ class Handler(socketserver.BaseRequestHandler):
             with LOCK:
                 STATE["max_age"] = max(0, seconds)
             print("[origin] max-age -> %ds" % seconds, flush=True)
+            return 200, {"Content-Type": "text/plain"}, b"ok"
+        if path == "/admin/reset-stats":
+            with LOCK:
+                for key in ("requests", "not_modified", "not_found", "bytes_served", "range_requests"):
+                    STATE[key] = 0
+            print("[origin] stats reset", flush=True)
             return 200, {"Content-Type": "text/plain"}, b"ok"
         if path == "/admin/delay":
             ms = int(dict(p.split("=") for p in _query.split("&") if "=" in p).get("ms", "0"))
@@ -175,7 +162,12 @@ class Handler(socketserver.BaseRequestHandler):
             except (TypeError, ValueError):
                 pass
 
-        rng = parse_range(headers.get("range"), len(data))
+        range_header = headers.get("range")
+        rng = parse_range(range_header, len(data))
+        if range_header and rng is None:
+            out["Content-Range"] = "bytes */%d" % len(data)
+            print("[origin] 416 %s (Range 不可满足/多段不支持)" % path, flush=True)
+            return 416, out, b""
         if rng:
             start, end = rng
             chunk = data[start:end + 1]

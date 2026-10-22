@@ -1,0 +1,3 @@
+step,cache,status,ttfb_ms,bytes,origin_not_modified
+首次请求,MISS,200,7.81,16808,0
+过期后再请求,REVALIDATED,200,17.15,16808,1

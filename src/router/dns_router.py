@@ -27,6 +27,7 @@ console.setup()
 QTYPE_A = 1
 QTYPE_AAAA = 28
 QCLASS_IN = 1
+FAILURE_THRESHOLD = 2      # 连续探测失败多少次才判为不可用（防抖动）
 
 
 class EdgeState:
@@ -41,6 +42,7 @@ class EdgeState:
         self.selections = 0
         self.probes = 0
         self.failures = 0
+        self.consecutive_failures = 0
         self.last_error = "not probed yet"
 
     def available(self):
@@ -63,6 +65,7 @@ class EdgeState:
             "selections": self.selections,
             "probes": self.probes,
             "failures": self.failures,
+            "consecutive_failures": self.consecutive_failures,
             "last_error": self.last_error,
         }
 
@@ -108,15 +111,19 @@ def probe_once(edge):
             edge.rtt_ms = rtt_ms
             edge.inflight = int(payload.get("inflight", 0))
             edge.healthy = True
+            edge.consecutive_failures = 0
             edge.probes += 1
             edge.last_error = ""
-    except Exception as exc:  # noqa: BLE001 探测失败的原因很多，统一记为不可用
+    except Exception as exc:  # noqa: BLE001 探测失败的原因很多，统一计数
         with STATE_LOCK:
-            edge.healthy = False
-            edge.rtt_ms = float("inf")
+            edge.consecutive_failures += 1
             edge.probes += 1
             edge.failures += 1
             edge.last_error = str(exc)
+            # 防抖动：连续 2 次失败才判为不可用，避免瞬时抖动导致误切换
+            if edge.consecutive_failures >= FAILURE_THRESHOLD:
+                edge.healthy = False
+                edge.rtt_ms = float("inf")
 
 
 def probe_loop():

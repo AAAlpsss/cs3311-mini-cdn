@@ -1,0 +1,3 @@
+phase,resolved_ip,edge,resolve_ms,status,cache,ttfb_ms
+before_failover,127.0.0.2,B,3.52,200,MISS,26.99
+after_failover,127.0.0.1,A,1.55,200,MISS,19.2

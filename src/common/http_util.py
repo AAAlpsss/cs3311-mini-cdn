@@ -17,6 +17,7 @@ REASONS = {
     403: "Forbidden",
     404: "Not Found",
     405: "Method Not Allowed",
+    416: "Range Not Satisfiable",
     500: "Internal Server Error",
     502: "Bad Gateway",
     504: "Gateway Timeout",
@@ -96,13 +97,19 @@ def build_response(status, headers, body=b"", method="GET", keep_alive=True):
     return head if bodyless else head + body
 
 
-def read_response(sock):
-    """读取一条响应，返回 (status, headers, body)。供边缘/客户端回源使用。"""
+def read_response(sock, on_first_byte=None):
+    """读取一条响应，返回 (status, headers, body)。
+
+    on_first_byte: 可选回调，收到第一个字节时调用，用于精确测 TTFB。
+    """
     buf = b""
     while b"\r\n\r\n" not in buf:
         chunk = sock.recv(65536)
         if not chunk:
             raise ConnectionError("connection closed before response headers")
+        if on_first_byte is not None:
+            on_first_byte()
+            on_first_byte = None
         buf += chunk
 
     head, _, rest = buf.partition(b"\r\n\r\n")
@@ -150,3 +157,28 @@ def is_cacheable(headers):
     """no-store / private 之外都当作可缓存。"""
     cc = (headers.get("cache-control") or "").lower()
     return "no-store" not in cc and "private" not in cc
+
+def parse_range(header, total):
+    """仅支持单段 bytes=start-end。返回 (start, end) 或 None。
+
+    多段（含逗号）与不可满足的范围都返回 None，由调用方回 416。
+    """
+    if not header or not header.startswith("bytes="):
+        return None
+    spec = header[len("bytes="):].strip()
+    if "," in spec:          # 多段范围：本项目不支持
+        return None
+    start_text, _, end_text = spec.partition("-")
+    try:
+        if start_text == "":
+            length = int(end_text)
+            if length <= 0:
+                return None
+            return max(0, total - length), total - 1
+        start = int(start_text)
+        end = int(end_text) if end_text else total - 1
+    except ValueError:
+        return None
+    if start >= total or start < 0 or end < start:
+        return None
+    return start, min(end, total - 1)

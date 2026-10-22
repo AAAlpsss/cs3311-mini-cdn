@@ -1,0 +1,11 @@
+path,seq,status,cache,ttfb_ms,total_ms,bytes
+origin_direct,1,200,-,53.89,54.71,16808
+origin_direct,2,200,-,53.07,54.23,16808
+origin_direct,3,200,-,55.82,57.49,16808
+origin_direct,4,200,-,54.92,56.5,16808
+origin_direct,5,200,-,53.82,55.32,16808
+edge_a,1,200,MISS,69.77,93.19,16808
+edge_a,2,200,HIT,0.74,25.2,16808
+edge_a,3,200,HIT,0.57,12.72,16808
+edge_a,4,200,HIT,0.56,15.62,16808
+edge_a,5,200,HIT,1.2,1.96,16808

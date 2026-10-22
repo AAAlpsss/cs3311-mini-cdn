@@ -1,0 +1,4 @@
+path,requests,bytes,seconds,mbps
+origin_direct,99,18293748,6.549,2.793
+edge_a,99,18293748,1.27,14.402
+edge_concurrent_20x5,100,11444400,0.806,14.192

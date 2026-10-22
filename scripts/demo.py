@@ -63,6 +63,9 @@ def main():
         http_client.request(spec["bind"], spec["port"], "/admin/delay?ms=0")
     # 单机回环没有链路时延：给源站加 50ms，代表「源站离用户很远」，边缘在本地
     origin_admin("/admin/delay?ms=50")
+    origin_admin("/admin/reset-stats")
+    http_get(config.ORIGIN["host"], config.ORIGIN["port"], "/" + OBJECT)   # 预热，避免首个请求含冷启动开销
+    origin_admin("/admin/reset-stats")
     print("\n（为逼近真实场景，源站响应人为加了 50 ms 时延，边缘节点在本地）")
 
     section("1. 没有 CDN：直连源站")
